@@ -9,13 +9,9 @@ El objetivo es lograr un comportamiento más eficiente y “cognitivo”, evitan
 
 El robot utiliza el sensor ultrasónico para “asomarse” hacia la derecha e izquierda mediante breves pivotes.
 Tras medir en ambos lados:
-
 Compara las distancias detectadas,
-
 Elige el lado con mayor espacio,
-
 Realiza un giro preciso para salir de la zona peligrosa.
-
 Esto reduce giros innecesarios y mejora la fluidez en esquinas.
 
 🔄 2. Anti-Oscilación / Anti-Atasco
@@ -34,16 +30,11 @@ Cuando se activa con:
 #define USE_LEARNING 1
 
 
-el robot comienza a aprender:
-
+El robot comienza a aprender:
 Identifica patrones de sensores (IR y ultrasonido).
-
 Registra qué acción funcionó mejor en el pasado.
-
 Probabilísticamente explora nuevas acciones (ε-greedy).
-
 Mejora con el tiempo para evitar repetir errores.
-
 Este módulo es muy ligero y compatible con microcontroladores de recursos limitados.
 
 🧩 Configuración de Pines
@@ -61,16 +52,13 @@ leftIR	8	0 = obstáculo, 1 = libre
 Señal	Pin
 trigPin	3
 echoPin	4
+
 🚀 Cómo Usarlo
 1️⃣ Subir el Sketch
-
 Carga el código en tu Arduino tal como está.
 Cuando el robot arranca:
-
 Se moverá en línea recta mientras no haya obstáculos.
-
 Utilizará los IR para evitar colisiones laterales.
-
 Usará el ultrasonido para decidir rutas en esquinas.
 
 2️⃣ Comportamiento Esperado
@@ -97,7 +85,6 @@ D_STOP = 30–35;   // recomendado para entornos estrechos
 🔹 2. Movimiento más suave
 
 Reduce aceleraciones bruscas:
-
 Disminuir SPEED_BACK o SPEED_TURN
 
 🔹 3. Salir mejor del atasco
@@ -110,23 +97,16 @@ delay en hardEscape()  // extender giro más amplio
 📦 Dependencias
 
 Arduino UNO / SunFounder R3
-
 Driver de motores L9110S
-
 Motores TT
-
 Sensores IR (obstáculos laterales)
-
 Sensor ultrasónico HC-SR04
 
 🧭 Futuras Mejoras (Opcionales)
 
 Mapa de calor de recorridos
-
 Interfaz Bluetooth para control manual
-
 Servo para “radar” ultrasónico
-
 Algoritmos más avanzados como Follow-the-Gap o Q-learning real
 
 📜 Licencia
