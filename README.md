@@ -109,34 +109,6 @@ Interfaz Bluetooth para control manual
 Servo para “radar” ultrasónico
 Algoritmos más avanzados como Follow-the-Gap o Q-learning real
 
-                ┌──────────────────────────┐
-                │        Arduino R3        │
-                │ (Unidad de Control Lógica)│
-                └────────────┬─────────────┘
-                             │
-   ┌─────────────────────────┼──────────────────────────┐
-   │                         │                          │
-   ▼                         ▼                          ▼
-┌───────────┐         ┌──────────────┐           ┌────────────────┐
-│ Sensores  │         │ Sensor       │           │ Driver L9110S   │
-│ IR        │         │ Ultrasonido  │           │ (Motores TT)    │
-│ Izq / Der │         │ HC-SR04      │           └───────┬────────┘
-└─────┬─────┘         └──────┬──────┘                   │
-      │                      │                          │
-      │ IR_left=8            │ trig=3                   │ Motor Izq
-      │ IR_right=7           │ echo=4                   ▼
-      │                      │                    ┌───────────┐
-      │                      │                    │ Motor TT  │
-      │                      │                    └───────────┘
-      │                      │                          ▲
-      ▼                      ▼                          │ Motor Der
-┌───────────────────────────────────────────┐            │
-│        Módulo de Decisión Autónoma        │<───────────┘
-│ - Evasión inteligente (“mirar y elegir”)  │
-│ - Anti-oscilación / U-Turn inteligente    │
-│ - Aprendizaje opcional (ε-greedy)         │
-└───────────────────────────────────────────┘
-
 
 📜 Licencia
 
