@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación IA: Evasión y Retroceso</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden; /* Evitar scrollbars */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        h1 {
+            color: #00e676;
+            text-shadow: 0 0 10px rgba(0, 230, 118, 0.5);
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .status-panel {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #333;
+            font-family: monospace;
+        }
+
+        #game-area {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #263238;
+            overflow: hidden;
+        }
+
+        /* PISO / TEXTURA */
+        .grid-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        /* EL AUTO */
+        #car {
+            position: absolute;
+            width: 60px;
+            height: 90px;
+            transform-origin: center center;
+            z-index: 10;
+            /* Transiciones suaves solo para transformaciones visuales, no movimiento */
+            will-change: transform; 
+        }
+
+        /* OBSTÁCULOS */
+        .obstacle {
+            position: absolute;
+            background: #ff5252;
+            border: 2px solid #ff8a80;
+            box-shadow: 0 0 15px rgba(255, 82, 82, 0.4);
+            border-radius: 4px;
+            z-index: 5;
+        }
+        
+        .obstacle::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.2) 45%, transparent 50%);
+        }
+
+        /* SENSORES (Rayos visuales) */
+        .ray {
+            position: absolute;
+            height: 2px;
+            background-color: #00e676;
+            transform-origin: left center;
+            opacity: 0.6;
+            z-index: 8;
+            pointer-events: none;
+        }
+        
+        .ray.hit {
+            background-color: #ff0055;
+            box-shadow: 0 0 5px #ff0055;
+            opacity: 1;
+        }
+
+        /* LUCES DE REVERSA */
+        .reverse-light {
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+        .reversing .reverse-light {
+            opacity: 1;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1>IA Vehículo Autónomo</h1>
+        <div class="status-panel">
+            <div>ESTADO: <span id="status-text" style="color: yellow;">INICIANDO</span></div>
+            <div>SENSOR F: <span id="sens-f">0</span></div>
+            <div>SENSOR L: <span id="sens-l">0</span></div>
+            <div>SENSOR R: <span id="sens-r">0</span></div>
+        </div>
+    </div>
+
+    <div id="game-area">
+        <div class="grid-bg"></div>
+        
+        <!-- OBSTÁCULOS (Formando un laberinto simple y trampas) -->
+        <!-- Borde Externo -->
+        <div class="obstacle" style="top: 0; left: 0; width: 100%; height: 20px;"></div>
+        <div class="obstacle" style="bottom: 0; left: 0; width: 100%; height: 20px;"></div>
+        <div class="obstacle" style="top: 0; left: 0; width: 20px; height: 100%;"></div>
+        <div class="obstacle" style="top: 0; right: 0; width: 20px; height: 100%;"></div>
+
+        <!-- Trampa en U (Esquina difícil para forzar reversa) -->
+        <div class="obstacle" style="top: 300px; left: 300px; width: 20px; height: 150px;"></div>
+        <div class="obstacle" style="top: 300px; left: 300px; width: 150px; height: 20px;"></div>
+        <div class="obstacle" style="top: 300px; left: 450px; width: 20px; height: 150px;"></div>
+
+        <!-- Bloques aleatorios -->
+        <div class="obstacle" style="top: 150px; right: 200px; width: 100px; height: 100px;"></div>
+        <div class="obstacle" style="bottom: 150px; left: 200px; width: 150px; height: 20px;"></div>
+        <div class="obstacle" style="top: 50%; left: 50%; width: 50px; height: 50px;"></div>
+
+        <!-- EL AUTO -->
+        <div id="car">
+            <svg viewBox="0 0 60 90" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%;">
+                <defs>
+                    <linearGradient id="carBody" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#0277bd;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#01579b;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <!-- Ruedas -->
+                <rect x="2" y="10" width="12" height="20" fill="#111" rx="2" />
+                <rect x="46" y="10" width="12" height="20" fill="#111" rx="2" />
+                <rect x="2" y="60" width="12" height="20" fill="#111" rx="2" />
+                <rect x="46" y="60" width="12" height="20" fill="#111" rx="2" />
+                
+                <!-- Chasis -->
+                <path d="M 10 5 L 50 5 L 55 15 L 55 80 L 50 85 L 10 85 L 5 80 L 5 15 Z" fill="url(#carBody)" stroke="#004c8c" stroke-width="1"/>
+                
+                <!-- Arduino -->
+                <rect x="20" y="35" width="20" height="25" fill="#00695c" rx="2"/>
+                
+                <!-- Luces de Freno / Reversa -->
+                <rect x="10" y="85" width="10" height="3" fill="#ff0000" class="brake-light"/>
+                <rect x="40" y="85" width="10" height="3" fill="#ff0000" class="brake-light"/>
+                <rect x="10" y="85" width="10" height="5" fill="white" class="reverse-light"/>
+                <rect x="40" y="85" width="10" height="5" fill="white" class="reverse-light"/>
+
+                <!-- Sensor Frontal -->
+                <path d="M 20 5 L 40 5 L 40 0 L 20 0 Z" fill="#333"/>
+                <circle cx="25" cy="2" r="2" fill="#81d4fa"/>
+                <circle cx="35" cy="2" r="2" fill="#81d4fa"/>
+            </svg>
+            
+            <!-- Rayos Visuales (DOM Elements appended via JS for logic sync) -->
+            <div id="ray-f" class="ray" style="width: 120px; top: 0px; left: 30px; transform: rotate(-90deg);"></div>
+            <div id="ray-l" class="ray" style="width: 80px; top: 10px; left: 30px; transform: rotate(-135deg);"></div>
+            <div id="ray-r" class="ray" style="width: 80px; top: 10px; left: 30px; transform: rotate(-45deg);"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        const SPEED = 2.5;
+        const ROTATION_SPEED = 2.5;
+        const SENSOR_RANGE_FRONT = 120;
+        const SENSOR_RANGE_SIDE = 80;
+        const OBSTACLE_THRESHOLD = 40; // Distancia para considerar "choque inminente"
+
+        // --- ESTADO DEL AUTO ---
+        let carState = {
+            x: 100,
+            y: 100,
+            angle: 90, // Grados. 0 = Derecha, 90 = Abajo (en CSS rotate), pero usaremos Math logic
+            // Usaremos sistema estándar trigonométrico corregido para vista top-down:
+            // 0 grados = Derecha (Eje X)
+            // CSS Rotation offset: 0deg en CSS es "Arriba" para el SVG si dibujamos hacia arriba
+            // Pero nuestro SVG tiene el frente hacia ARRIBA (y=0).
+            mode: 'FORWARD', // FORWARD, AVOID, REVERSE
+            reverseTimer: 0
+        };
+
+        const carEl = document.getElementById('car');
+        const statusEl = document.getElementById('status-text');
+        
+        // Elementos Rayos UI
+        const rayF = document.getElementById('ray-f');
+        const rayL = document.getElementById('ray-l');
+        const rayR = document.getElementById('ray-r');
+
+        // Obstáculos (Cacheamos sus Bounding Rects para performance)
+        let obstacles = [];
+        
+        function cacheObstacles() {
+            const els = document.querySelectorAll('.obstacle');
+            obstacles = Array.from(els).map(el => {
+                const rect = el.getBoundingClientRect();
+                return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+            });
+        }
+        
+        // Ajustar al redimensionar
+        window.addEventListener('resize', () => {
+            cacheObstacles();
+            // Reset position if lost
+            carState.x = window.innerWidth / 2;
+            carState.y = window.innerHeight / 2;
+        });
+        
+        // Inicio
+        setTimeout(() => {
+            cacheObstacles();
+            carState.x = window.innerWidth / 2;
+            carState.y = window.innerHeight - 100;
+            carState.angle = -90; // Mirando hacia arriba
+            gameLoop();
+        }, 100);
+
+
+        // --- FÍSICA Y RAYCASTING ---
+
+        // Función simple para intersectar línea con rectángulo
+        function getIntersection(rayOrigin, rayDir, maxDist, obs) {
+            // Ray: P = O + t*D
+            // Rect: x, y, w, h
+            // Comprobamos intersección con los 4 bordes del obstáculo
+            // Esto es una simplificación. Para eficiencia, chequeamos si el rayo entra en el box.
+            
+            let tMin = Infinity;
+            
+            // Líneas del obstáculo:
+            const lines = [
+                {p1: {x: obs.x, y: obs.y}, p2: {x: obs.x + obs.w, y: obs.y}}, // Top
+                {p1: {x: obs.x, y: obs.y + obs.h}, p2: {x: obs.x + obs.w, y: obs.y + obs.h}}, // Bottom
+                {p1: {x: obs.x, y: obs.y}, p2: {x: obs.x, y: obs.y + obs.h}}, // Left
+                {p1: {x: obs.x + obs.w, y: obs.y}, p2: {x: obs.x + obs.w, y: obs.y + obs.h}} // Right
+            ];
+
+            lines.forEach(line => {
+                const x1 = line.p1.x; const y1 = line.p1.y;
+                const x2 = line.p2.x; const y2 = line.p2.y;
+                const x3 = rayOrigin.x; const y3 = rayOrigin.y;
+                const x4 = rayOrigin.x + rayDir.x * maxDist; const y4 = rayOrigin.y + rayDir.y * maxDist;
+
+                const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                if (den == 0) return;
+
+                const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+                const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den;
+
+                if (t > 0 && t < 1 && u > 0 && u < 1) {
+                    // Intersection found at u distance along ray
+                    const dist = u * maxDist;
+                    if (dist < tMin) tMin = dist;
+                }
+            });
+
+            return tMin === Infinity ? maxDist : tMin;
+        }
+
+        function getSensors() {
+            // Centro del auto
+            const cx = carState.x + 30; 
+            const cy = carState.y + 45;
+            
+            // Ángulos de los sensores (basados en el ángulo del auto)
+            // angulo 0 en Math es derecha. angulo -90 es arriba.
+            const rad = carState.angle * Math.PI / 180;
+            const radL = (carState.angle - 45) * Math.PI / 180;
+            const radR = (carState.angle + 45) * Math.PI / 180;
+
+            const origin = {x: cx, y: cy};
+            
+            // Direcciones unitarias
+            const dirF = {x: Math.cos(rad), y: Math.sin(rad)};
+            const dirL = {x: Math.cos(radL), y: Math.sin(radL)};
+            const dirR = {x: Math.cos(radR), y: Math.sin(radR)};
+
+            // Calcular distancias
+            let distF = SENSOR_RANGE_FRONT;
+            let distL = SENSOR_RANGE_SIDE;
+            let distR = SENSOR_RANGE_SIDE;
+
+            obstacles.forEach(obs => {
+                distF = Math.min(distF, getIntersection(origin, dirF, SENSOR_RANGE_FRONT, obs));
+                distL = Math.min(distL, getIntersection(origin, dirL, SENSOR_RANGE_SIDE, obs));
+                distR = Math.min(distR, getIntersection(origin, dirR, SENSOR_RANGE_SIDE, obs));
+            });
+
+            return { f: distF, l: distL, r: distR };
+        }
+
+        // --- BUCLE PRINCIPAL ---
+        function gameLoop() {
+            const sensors = getSensors();
+
+            // Actualizar UI Sensores
+            updateSensorUI(rayF, sensors.f, SENSOR_RANGE_FRONT);
+            updateSensorUI(rayL, sensors.l, SENSOR_RANGE_SIDE);
+            updateSensorUI(rayR, sensors.r, SENSOR_RANGE_SIDE);
+            
+            document.getElementById('sens-f').innerText = Math.round(sensors.f);
+            document.getElementById('sens-l').innerText = Math.round(sensors.l);
+            document.getElementById('sens-r').innerText = Math.round(sensors.r);
+
+            // --- LÓGICA DE DECISIÓN (CEREBRO ARDUINO) ---
+            
+            if (carState.mode === 'REVERSE') {
+                statusEl.innerText = "RETROCEDIENDO (OBSTÁCULO COMPLEJO)";
+                statusEl.style.color = "red";
+                carEl.classList.add('reversing');
+
+                // Moverse atrás
+                carState.x -= Math.cos(carState.angle * Math.PI / 180) * (SPEED * 0.5);
+                carState.y -= Math.sin(carState.angle * Math.PI / 180) * (SPEED * 0.5);
+                
+                // Girar ruedas al revés para salir de la esquina
+                // Si la izquierda estaba bloqueada, giramos para que al retroceder el frente apunte a la derecha
+                carState.angle += ROTATION_SPEED; 
+
+                carState.reverseTimer--;
+                if (carState.reverseTimer <= 0) {
+                    carState.mode = 'FORWARD'; // Intentar avanzar de nuevo
+                    carEl.classList.remove('reversing');
+                }
+
+            } else {
+                // MODO NORMAL (FORWARD)
+                statusEl.innerText = "AVANZANDO (PATH CIRCULAR)";
+                statusEl.style.color = "#00e676";
+
+                // Detección de Colisiones
+                let blockedF = sensors.f < OBSTACLE_THRESHOLD;
+                let blockedL = sensors.l < OBSTACLE_THRESHOLD;
+                let blockedR = sensors.r < OBSTACLE_THRESHOLD;
+
+                if (blockedF) {
+                    // OBSTÁCULO FRONTAL DETECTADO
+                    if (blockedL && blockedR) {
+                        // CALLEJÓN SIN SALIDA (Los 3 bloqueados) -> Retroceso largo
+                        carState.mode = 'REVERSE';
+                        carState.reverseTimer = 60; // 1 segundo aprox (60 frames)
+                    } 
+                    else if (blockedL) {
+                        // ESQUINA IZQUIERDA (Frente + Izq bloqueados) -> Posible trampa -> Retroceso corto
+                         carState.mode = 'REVERSE';
+                         carState.reverseTimer = 30;
+                    }
+                    else if (blockedR) {
+                        // ESQUINA DERECHA -> Retroceso corto
+                         carState.mode = 'REVERSE';
+                         carState.reverseTimer = 30;
+                    }
+                    else {
+                        // SOLO FRENTE -> Evasión Simple
+                        statusEl.innerText = "EVADIENDO OBSTÁCULO";
+                        statusEl.style.color = "orange";
+                        // Girar hacia donde haya más espacio
+                        if (sensors.l > sensors.r) {
+                            carState.angle -= ROTATION_SPEED * 2; // Girar Izq
+                        } else {
+                            carState.angle += ROTATION_SPEED * 2; // Girar Der
+                        }
+                    }
+                } else {
+                    // CAMINO LIBRE
+                    // Comportamiento "Circular al Azar":
+                    // El auto siempre gira un poquito (0.5 grados) para hacer círculos
+                    // A veces cambiamos la dirección del círculo aleatoriamente
+                    if (Math.random() < 0.01) carState.randomDir = Math.random() > 0.5 ? 1 : -1;
+                    if (!carState.randomDir) carState.randomDir = 1;
+                    
+                    carState.angle += 0.5 * carState.randomDir;
+
+                    // Evitar paredes laterales antes de chocar (Corrección suave)
+                    if (sensors.l < SENSOR_RANGE_SIDE * 0.8) carState.angle += 1;
+                    if (sensors.r < SENSOR_RANGE_SIDE * 0.8) carState.angle -= 1;
+                    
+                    // Avanzar
+                    carState.x += Math.cos(carState.angle * Math.PI / 180) * SPEED;
+                    carState.y += Math.sin(carState.angle * Math.PI / 180) * SPEED;
+                }
+            }
+
+            // Aplicar movimiento al DOM
+            // Offset de +90 grados porque el SVG apunta hacia arriba (y negativo), pero Math angle 0 es derecha.
+            // Para que angle -90 sea arriba en CSS: rotate(-90 + 90) = 0deg. Perfecto.
+            carEl.style.transform = `translate(${carState.x}px, ${carState.y}px) rotate(${carState.angle + 90}deg)`;
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateSensorUI(el, dist, maxRange) {
+            // Escalar visualmente el rayo
+            // Si choca, acortarlo
+            el.style.width = `${dist}px`;
+            if (dist < maxRange - 5) {
+                el.classList.add('hit');
+            } else {
+                el.classList.remove('hit');
+            }
+        }
+
+    </script>
+</body>
+</html>
